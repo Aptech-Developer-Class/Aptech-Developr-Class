@@ -1,61 +1,62 @@
 //task runner
-const gulp = require('gulp');
-const autoprefixer = require('gulp-autoprefixer');
-const cssnano = require('gulp-cssnano');
+const {src, dest, series, watch} = require('gulp');
+const autoprefixer = require('autoprefixer');
+const cssnano = require('cssnano');
 const babel = require('gulp-babel');
-const browserSync = require('browser-sync').create()
-const uglify = require('gulp-uglify')
+const uglify = require('gulp-uglify');
+const postcss = require('gulp-postcss');
+const terser = require('gulp-terser');
+const concat = require('gulp-concat');
+const browserSync = require('browser-sync').create();
 
-gulp.task('css', function(){
-	return gulp
-		.src("./src/css/styles.css") //source css folder
-		.pipe(autoprefixer({
-			browsers: ['last 2 versions'],
-			cascade: true
-		}))
-		.pipe(cssnano())
-		.pipe(gulp.dest('./dist/css/')) //destination css folder
-})
+function cssTask(){
+	return src("./src/css/styles.css", {sourcemaps: true}) //source css folder
+		.pipe(postcss([autoprefixer(), cssnano()]))
+		.pipe(dest('./dist/css/', {sourcemaps: '.'})) //destination css folder
+}
 
 
-gulp.task('js', function(){
-	return gulp
-		.src("./src/js/*.js") //source js folder
+function jsTask (){
+	return src("./src/js/*.js", {sourcemaps: true}) //source js folder
 		.pipe(babel({
 			presets: ['@babel/preset-env']
 		}))
+		.pipe(concat('all.js'))
 		.pipe(uglify())
-		.pipe(gulp.dest('./dist/js'))
-		
-})
+		.pipe(terser())
+		.pipe(dest('./dist/js', {sourcemaps: '.'}))
+}
 
-gulp.task('html', function(){})
-
-//watches for changes in css files & js files
-gulp.task('watch', function(){
-	gulp.watch('./src/css/*.css', gulp.parallel('css'))
-	gulp.watch('./src/js/*.js', gulp.parallel('js'))
-})
-
-//rebuild the css and javascirpt files with gulp
-gulp.task('build', gulp.parallel('css', 'js'))
-
-gulp.task('serve', function(){
+function bsServe(cb){
 	 browserSync.init({
         server: {
-            baseDir: "./dist" //build directory
+            baseDir: "." //build directory
         },
         //port
         port: 3000,
         //open on build
         open: false
     })
-	 //watch all files
-	 gulp.watch('./src/**/*').on('change', browserSync.reload)
-	 gulp.watch("*.html").on('change', browserSync.reload)
-})
+	 
+	 cb()
+}
+
+
+function bsReload(cb){
+	browserSync.reload()
+	cb()
+}
+
+
+//watches for changes in css files & js files
+function watchTask(){
+	watch('*.html', bsReload)
+	watch(['src/**/*.css', 'src/**/*.js'], series(cssTask, jsTask, bsReload))
+}
+
+
 
 //runs all the tasks
-gulp.task('default', gulp.series('build', 'serve', 'watch'))
+exports.default = series(cssTask, jsTask, bsServe, watchTask)
 
 
